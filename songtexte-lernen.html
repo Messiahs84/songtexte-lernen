@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Songtexte lernen</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%; background: #000; color: #fff;
+    font-family: 'Avenir Next', 'Helvetica Neue', system-ui, -apple-system, sans-serif;
+    overscroll-behavior: none;
+  }
+  #app { height: 100vh; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+
+  /* Top bar */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; border-bottom: 1px solid #1a1a1a; flex-shrink: 0;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .topbar-label {
+    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: #666; font-weight: 600; white-space: nowrap;
+  }
+  .icon-btn {
+    width: 32px; height: 32px; border-radius: 8px; background: #1a1a1a;
+    border: none; display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .icon-btn.ghost { background: transparent; }
+  .icon-btn.primary { background: #fff; }
+  .icon-btn svg { pointer-events: none; }
+  .topbar-actions { display: flex; gap: 6px; }
+
+  /* List view */
+  #listView { flex: 1; overflow-y: auto; padding: 8px 0 24px; -webkit-overflow-scrolling: touch; }
+  .empty-state {
+    height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px; padding: 24px; text-align: center;
+  }
+  .empty-text { font-size: 15px; color: #555; max-width: 260px; line-height: 1.5; }
+  .pill-btn {
+    background: #fff; color: #000; border: none; border-radius: 999px; padding: 10px 20px;
+    font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 6px; cursor: pointer;
+  }
+  .song-row {
+    width: 100%; text-align: left; background: transparent; border: none;
+    border-bottom: 1px solid #161616; padding: 16px 20px; display: flex;
+    align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; color: #fff;
+  }
+  .song-title {
+    font-size: 16px; font-weight: 700; text-transform: uppercase;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .song-preview {
+    font-size: 13px; color: #666; margin-top: 4px; text-transform: uppercase;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  /* Reader view */
+  #readerView { flex: 1; overflow-y: auto; padding: 28px 22px 60px; -webkit-overflow-scrolling: touch; display: none; }
+  #readerTitle { font-size: 22px; font-weight: 700; margin: 0 0 22px; letter-spacing: -0.01em; text-transform: uppercase; }
+  #readerLyrics { font-size: 21px; line-height: 1.75; white-space: pre-wrap; color: #f5f5f5; text-transform: uppercase; }
+
+  /* Bottom nav */
+  #bottomNav {
+    display: none; align-items: center; justify-content: space-between;
+    padding: 12px 18px; border-top: 1px solid #1a1a1a; flex-shrink: 0;
+  }
+  .nav-btn {
+    width: 40px; height: 40px; border-radius: 50%; background: #1a1a1a; border: none;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .nav-btn:disabled { opacity: 0.25; }
+  #dots { display: flex; gap: 6px; }
+  .dot { height: 6px; border-radius: 3px; background: #333; transition: all 0.2s ease; }
+  .dot.active { background: #fff; }
+
+  /* Modal */
+  .modal {
+    position: absolute; inset: 0; background: #000; display: none;
+    flex-direction: column; z-index: 10;
+  }
+  .modal.open { display: flex; }
+  .modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; border-bottom: 1px solid #1a1a1a;
+  }
+  .modal-title { font-size: 15px; font-weight: 600; }
+  .modal-body { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  input, textarea {
+    background: #111; border: 1px solid #262626; border-radius: 10px; padding: 12px 14px;
+    color: #fff; font-size: 16px; font-family: inherit; outline: none; width: 100%;
+  }
+  textarea { flex: 1; min-height: 300px; resize: none; line-height: 1.6; }
+  .hint { font-size: 12px; color: #555; line-height: 1.5; }
+  .modal-footer { padding: 16px; border-top: 1px solid #1a1a1a; }
+  .save-btn {
+    width: 100%; background: #fff; color: #000; border: none; border-radius: 10px;
+    padding: 13px 0; font-size: 15px; font-weight: 700; cursor: pointer;
+  }
+
+  /* Delete confirm overlay */
+  .overlay {
+    position: absolute; inset: 0; background: rgba(0,0,0,0.75); display: none;
+    align-items: center; justify-content: center; z-index: 20; padding: 24px;
+  }
+  .overlay.open { display: flex; }
+  .confirm-box {
+    background: #111; border: 1px solid #262626; border-radius: 14px; padding: 20px;
+    width: 100%; max-width: 300px; text-align: center;
+  }
+  .confirm-text { font-size: 15px; margin-bottom: 18px; color: #eee; }
+  .confirm-actions { display: flex; gap: 10px; }
+  .secondary-btn {
+    background: #1a1a1a; border: 1px solid #262626; color: #fff; border-radius: 10px;
+    padding: 11px 0; font-size: 14px; font-weight: 600; flex: 1; cursor: pointer;
+  }
+  .danger-btn { background: #e5484d; border-color: #e5484d; }
+
+  .storage-warning {
+    display: none; font-size: 11px; color: #b45; background: #2a1515; border: 1px solid #4a2020;
+    border-radius: 8px; padding: 8px 10px; margin: 8px 16px 0; line-height: 1.4;
+  }
+  .storage-warning.show { display: block; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div class="topbar">
+    <div class="topbar-left">
+      <button id="backBtn" class="icon-btn ghost" style="display:none;" aria-label="Zur Übersicht">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+      </button>
+      <svg id="musicIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+      <span id="topbarLabel" class="topbar-label">Keine Songs</span>
+    </div>
+    <div class="topbar-actions">
+      <button id="editCurrentBtn" class="icon-btn" style="display:none;" aria-label="Bearbeiten">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
+      </button>
+      <button id="deleteCurrentBtn" class="icon-btn" style="display:none;" aria-label="Löschen">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+      </button>
+      <button id="addBtn" class="icon-btn primary" aria-label="Song hinzufügen">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div id="backupBar" style="padding:8px 16px; display:flex; gap:8px; border-bottom:1px solid #1a1a1a;">
+    <button id="exportBtn" class="secondary-btn" style="flex:none; padding:8px 14px; font-size:12px;">Sichern (Text kopieren)</button>
+    <button id="importBtn" class="secondary-btn" style="flex:none; padding:8px 14px; font-size:12px;">Wiederherstellen</button>
+  </div>
+
+  <div id="storageWarning" class="storage-warning">
+    Hinweis: Lokal geöffnet kann Safari das Speichern blockieren – Songs bleiben dann evtl. nicht dauerhaft erhalten.
+  </div>
+
+  <div id="listView">
+    <div id="emptyState" class="empty-state">
+      <div class="empty-text">Noch keine Songtexte. Füg deinen ersten Song hinzu, um mit dem Auswendiglernen zu starten.</div>
+      <button class="pill-btn" onclick="openEditor()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Song hinzufügen
+      </button>
+    </div>
+    <div id="songList"></div>
+  </div>
+
+  <div id="readerView">
+    <h1 id="readerTitle"></h1>
+    <div id="readerLyrics"></div>
+  </div>
+
+  <div id="bottomNav">
+    <button id="prevBtn" class="nav-btn" aria-label="Vorheriger Song">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <div id="dots"></div>
+    <button id="nextBtn" class="nav-btn" aria-label="Nächster Song">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+  </div>
+
+  <!-- Editor modal -->
+  <div id="editorModal" class="modal">
+    <div class="modal-header">
+      <span id="editorTitleLabel" class="modal-title">Neuer Song</span>
+      <button class="icon-btn" onclick="closeEditor()" aria-label="Schließen">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <input id="titleInput" type="text" placeholder="Titel (z. B. Interpret – Songname)" />
+      <textarea id="lyricsInput" placeholder="Songtext hier einfügen..."></textarea>
+      <div class="hint">Hinweis: Der Text wird beim Anzeigen automatisch in Großbuchstaben dargestellt, unabhängig davon, wie du ihn einfügst.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="save-btn" onclick="saveSong()">Speichern</button>
+    </div>
+  </div>
+
+  <!-- Export modal -->
+  <div id="exportModal" class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Sicherungstext (alles kopieren)</span>
+      <button class="icon-btn" onclick="closeExport()" aria-label="Schließen">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="hint">Tippe in das Feld, wähle alles aus und kopiere den Text (z. B. in Notizen sichern). Bei Bedarf über "Wiederherstellen" wieder einfügen.</div>
+      <textarea id="exportText" readonly style="min-height: 400px;"></textarea>
+    </div>
+  </div>
+
+  <!-- Import modal -->
+  <div id="importModal" class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Wiederherstellen</span>
+      <button class="icon-btn" onclick="closeImport()" aria-label="Schließen">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="hint">Füge hier deinen zuvor gesicherten Text ein. Achtung: Das ersetzt die aktuelle Songliste.</div>
+      <textarea id="importText" style="min-height: 400px;" placeholder="Gesicherten Text hier einfügen..."></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="save-btn" onclick="doImport()">Wiederherstellen</button>
+    </div>
+  </div>
+
+  <!-- Delete confirm -->
+  <div id="deleteOverlay" class="overlay">
+    <div class="confirm-box">
+      <div class="confirm-text">Diesen Song wirklich löschen?</div>
+      <div class="confirm-actions">
+        <button class="secondary-btn" onclick="closeDeleteConfirm()">Abbrechen</button>
+        <button class="secondary-btn danger-btn" onclick="confirmDelete()">Löschen</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const STORAGE_KEY = 'lyrics-songs-local';
+  let songs = [];
+  let index = 0;
+  let view = 'list'; // 'list' | 'reader'
+  let editingId = null;
+  let deleteTargetId = null;
+  let touchStartX = null, touchStartY = null;
+
+  // Speicher laden; wenn localStorage blockiert ist (z.B. lokale Datei in Safari), Warnhinweis zeigen
+  function loadSongs() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) songs = JSON.parse(raw);
+    } catch (e) {
+      document.getElementById('storageWarning').classList.add('show');
+    }
+  }
+  function persist() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(songs));
+    } catch (e) {
+      document.getElementById('storageWarning').classList.add('show');
+    }
+  }
+
+  function uid() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+
+  function render() {
+    const topbarLabel = document.getElementById('topbarLabel');
+    const backBtn = document.getElementById('backBtn');
+    const musicIcon = document.getElementById('musicIcon');
+    const editBtn = document.getElementById('editCurrentBtn');
+    const delBtn = document.getElementById('deleteCurrentBtn');
+    const listView = document.getElementById('listView');
+    const readerView = document.getElementById('readerView');
+    const bottomNav = document.getElementById('bottomNav');
+    const emptyState = document.getElementById('emptyState');
+    const songList = document.getElementById('songList');
+
+    if (index >= songs.length) index = Math.max(0, songs.length - 1);
+    const current = songs[index];
+
+    if (view === 'reader' && current) {
+      backBtn.style.display = 'flex';
+      musicIcon.style.display = 'none';
+      editBtn.style.display = 'flex';
+      delBtn.style.display = 'flex';
+      topbarLabel.textContent = `Song ${index + 1} / ${songs.length}`;
+      listView.style.display = 'none';
+      readerView.style.display = 'block';
+      bottomNav.style.display = 'flex';
+
+      document.getElementById('readerTitle').textContent = current.title;
+      document.getElementById('readerLyrics').textContent = current.lyrics || '(kein Text)';
+
+      document.getElementById('prevBtn').disabled = index === 0;
+      document.getElementById('nextBtn').disabled = index === songs.length - 1;
+
+      const dots = document.getElementById('dots');
+      dots.innerHTML = '';
+      songs.forEach((s, i) => {
+        const d = document.createElement('div');
+        d.className = 'dot' + (i === index ? ' active' : '');
+        d.style.width = (i === index ? '16px' : '6px');
+        dots.appendChild(d);
+      });
+    } else {
+      view = 'list';
+      backBtn.style.display = 'none';
+      musicIcon.style.display = 'block';
+      editBtn.style.display = 'none';
+      delBtn.style.display = 'none';
+      topbarLabel.textContent = songs.length === 0 ? 'Keine Songs' : `${songs.length} Song${songs.length === 1 ? '' : 's'}`;
+      listView.style.display = 'block';
+      readerView.style.display = 'none';
+      bottomNav.style.display = 'none';
+
+      if (songs.length === 0) {
+        emptyState.style.display = 'flex';
+        songList.innerHTML = '';
+      } else {
+        emptyState.style.display = 'none';
+        songList.innerHTML = '';
+        songs.forEach((s, i) => {
+          const row = document.createElement('button');
+          row.className = 'song-row';
+          const firstLine = (s.lyrics || '').split('\n').find(l => l.trim()) || 'Kein Text';
+          row.innerHTML = `
+            <div style="min-width:0;">
+              <div class="song-title">${escapeHtml(s.title)}</div>
+              <div class="song-preview">${escapeHtml(firstLine)}</div>
+            </div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#444" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          `;
+          row.onclick = () => { index = i; view = 'reader'; render(); };
+          songList.appendChild(row);
+        });
+      }
+    }
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function openEditor(song) {
+    editingId = song ? song.id : null;
+    document.getElementById('editorTitleLabel').textContent = song ? 'Song bearbeiten' : 'Neuer Song';
+    document.getElementById('titleInput').value = song ? song.title : '';
+    document.getElementById('lyricsInput').value = song ? song.lyrics : '';
+    document.getElementById('editorModal').classList.add('open');
+  }
+  function closeEditor() {
+    document.getElementById('editorModal').classList.remove('open');
+  }
+  function saveSong() {
+    const title = document.getElementById('titleInput').value.trim() || 'Ohne Titel';
+    const lyrics = document.getElementById('lyricsInput').value;
+    if (editingId) {
+      const s = songs.find(x => x.id === editingId);
+      if (s) { s.title = title; s.lyrics = lyrics; }
+    } else {
+      songs.push({ id: uid(), title, lyrics });
+      index = songs.length - 1;
+      view = 'reader';
+    }
+    persist();
+    closeEditor();
+    render();
+  }
+
+  function openDeleteConfirm(id) {
+    deleteTargetId = id;
+    document.getElementById('deleteOverlay').classList.add('open');
+  }
+  function closeDeleteConfirm() {
+    document.getElementById('deleteOverlay').classList.remove('open');
+  }
+  function confirmDelete() {
+    songs = songs.filter(s => s.id !== deleteTargetId);
+    if (songs.length === 0) view = 'list';
+    persist();
+    closeDeleteConfirm();
+    render();
+  }
+
+  function openExport() {
+    // Einfaches, robustes Textformat: pro Song ein Block, klar getrennt.
+    const blocks = songs.map(s => `===TITEL===\n${s.title}\n===TEXT===\n${s.lyrics}`);
+    document.getElementById('exportText').value = blocks.join('\n\n===SONG_ENDE===\n\n');
+    document.getElementById('exportModal').classList.add('open');
+    // Für einfaches Kopieren direkt alles markieren
+    setTimeout(() => {
+      const ta = document.getElementById('exportText');
+      ta.focus();
+      ta.select();
+    }, 100);
+  }
+  function closeExport() {
+    document.getElementById('exportModal').classList.remove('open');
+  }
+  function openImport() {
+    document.getElementById('importText').value = '';
+    document.getElementById('importModal').classList.add('open');
+  }
+  function closeImport() {
+    document.getElementById('importModal').classList.remove('open');
+  }
+  function doImport() {
+    const raw = document.getElementById('importText').value.trim();
+    if (!raw) { closeImport(); return; }
+    try {
+      const blocks = raw.split('===SONG_ENDE===').map(b => b.trim()).filter(Boolean);
+      const parsed = blocks.map(b => {
+        const titleMatch = b.match(/===TITEL===\s*([\s\S]*?)\s*===TEXT===/);
+        const lyricsMatch = b.match(/===TEXT===\s*([\s\S]*)/);
+        return {
+          id: uid(),
+          title: titleMatch ? titleMatch[1].trim() : 'Ohne Titel',
+          lyrics: lyricsMatch ? lyricsMatch[1].trim() : ''
+        };
+      });
+      if (parsed.length > 0) {
+        songs = parsed;
+        index = 0;
+        view = 'list';
+        persist();
+        closeImport();
+        render();
+      }
+    } catch (e) {
+      alert('Der Text konnte nicht gelesen werden. Bitte prüfe, ob er unverändert eingefügt wurde.');
+    }
+  }
+
+  document.getElementById('exportBtn').onclick = openExport;
+  document.getElementById('importBtn').onclick = openImport;
+  document.getElementById('addBtn').onclick = () => openEditor(null);
+  document.getElementById('backBtn').onclick = () => { view = 'list'; render(); };
+  document.getElementById('editCurrentBtn').onclick = () => openEditor(songs[index]);
+  document.getElementById('deleteCurrentBtn').onclick = () => openDeleteConfirm(songs[index] && songs[index].id);
+  document.getElementById('prevBtn').onclick = () => { if (index > 0) { index--; render(); } };
+  document.getElementById('nextBtn').onclick = () => { if (index < songs.length - 1) { index++; render(); } };
+
+  const readerView = document.getElementById('readerView');
+  readerView.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  });
+  readerView.addEventListener('touchend', (e) => {
+    if (touchStartX === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      if (dx < 0 && index < songs.length - 1) { index++; render(); }
+      else if (dx > 0 && index > 0) { index--; render(); }
+    }
+    touchStartX = null; touchStartY = null;
+  });
+
+  loadSongs();
+  render();
+</script>
+</body>
+</html>
